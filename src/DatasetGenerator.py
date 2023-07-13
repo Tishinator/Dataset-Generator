@@ -2,10 +2,9 @@ import os
 import sys
 import argparse
 import cv2
-import numpy as np
 from tqdm import tqdm
-from os.path import isfile, join
-from src.image_transformation.ImageTransformation import ImageTransformer
+from src.image.Image import Image
+from src.modifications import utils
 
 
 def prompt_boolean_input(message):
@@ -41,7 +40,7 @@ def main():
     img_path = args.img_path
     print(f"Image path: {img_path}")
 
-    image = cv2.imread(img_path)
+    image = Image(img_path)
 
     if prompt_boolean_input("Would you like the image rotated? Y/N: "):
         rotation_config = {
@@ -70,24 +69,35 @@ def main():
 
     validate_user_confirmation("Continue? (yes/no): ")
 
-    cv2.imshow("image", image)
-    cv2.waitKey(0)
+    # cv2.imshow("image", image.image_data)
+    # cv2.waitKey(0)
 
-    dx, dy = int(image.shape[0] / 10), int(image.shape[1] / 10)
+    dx, dy = int(image.image_data.shape[0] / 10), int(image.image_data.shape[1] / 10)
 
     output_dirs = ['output', 'output/X', 'output/Y', 'output/Z']
     for dir_name in output_dirs:
         os.makedirs(dir_name, exist_ok=True)
 
-    image_transformer = ImageTransformer(image)
+    progress_bar = tqdm(total=num_images, unit="images")
 
-    progress_bar = tqdm(total=rotation_angle * 3, unit="images")
+    for angle in range(rotation_angle):
+        # Iterate over the axes dynamically based on the configurations
+        for axis_name, axis, do_rotation in [('X', [angle, 0, 0], rotation_config["do_rotation_on_x"]),
+                                             ('Y', [0, angle, 0], rotation_config["do_rotation_on_y"]),
+                                             ('Z', [0, 0, angle], rotation_config["do_rotation_on_z"])]:
+            if do_rotation:
+                # Rotate the image using the current axis and offset
+                rotated_image = image.rotate(axis=axis, position_offset=[dx, dy])
 
-    for angle in range(0, rotation_angle):
-        for axis, rotation_func in [('Y', 'phi'), ('X', 'theta'), ('Z', 'gamma')]:
-            rotated_image = image_transformer.rotate_along_axis(dx=dx, dy=dy, **{rotation_func: angle})
-            image_transformer.save_image(f'output/{axis}/{angle}{axis}_{str(angle).zfill(3)}.jpg', rotated_image)
+                # Construct the filename based on the axis name and angle
+                filename = f'output/{axis_name}/{angle}{axis_name}_{str(angle).zfill(3)}.jpg'
+
+                # Save the rotated image with the constructed filename
+                utils.save_image(filename, rotated_image.image_data)
+
+            # Update the progress bar
             progress_bar.update()
+
 
     progress_bar.close()
 
